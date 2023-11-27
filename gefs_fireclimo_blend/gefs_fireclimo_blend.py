@@ -5,6 +5,29 @@ import pandas as pd
 import argparse
 
 
+def write_ncf(dset, outfile):
+    """
+    Write the given dataset to a NetCDF file with specified encoding.
+
+    Parameters:
+    - dset (xarray.Dataset): The dataset to be written to the NetCDF file.
+    - outfile (str): The path and filename of the output NetCDF file.
+
+    Returns:
+    None
+    """
+    print('Output File:', outfile)
+    encoding = {}
+    for v in dset.data_vars:
+        encoding[v] = dict(zlib=True, complevel=4)
+    if 'latitude' in dset:
+        encoding['latitude'] = dict(zlib=True, complevel=4)
+        encoding['longitude'] = dict(zlib=True, complevel=4)
+    if 'lat_b' in dset:
+        encoding["lat_b"] = dict(zlib=True, complevel=4)
+        encoding["lon_b"] = dict(zlib=True, complevel=4)
+    dset.load().to_netcdf(outfile, encoding=encoding)
+
 def create_climatology(emissions, climatology, lat_coarse=50, lon_coarse=50):
     """
     Create scaled climatology data based on emission data.
@@ -160,16 +183,4 @@ if __name__ == '__main__':
     #    savefig(outname,dpi=200)
     #close('all')
     
-    def write_ncf(dset,outfile):
-        print('Output File:', outfile)
-        encoding = {}
-        for v in dset.data_vars:
-            encoding[v] = dict(zlib=True, complevel=4)
-        if 'latitude' in dset:
-            encoding['latitude'] = dict(zlib=True, complevel=4)
-            encoding['longitude'] = dict(zlib=True, complevel=4)
-        if 'lat_b' in dset:
-            encoding["lat_b"] = dict(zlib=True, complevel=4)
-            encoding["lon_b"] = dict(zlib=True, complevel=4)
-        dset.load().to_netcdf(outfile, encoding=encoding)
 
