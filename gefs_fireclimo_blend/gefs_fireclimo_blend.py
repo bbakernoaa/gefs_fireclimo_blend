@@ -1,4 +1,4 @@
-#!/bin/bash/env python
+#!/usr/bin/env python
 
 import xarray as xr
 import pandas as pd
