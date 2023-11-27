@@ -119,10 +119,7 @@ def make_fire_emission(d=None, climos=None, ratio=0.9, scale_climo=True, n_forec
     return dsets
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-        description='blending GEFs with fire emissions',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument(
+    ...
         '-s',
         '--start_date',
         type=str,
