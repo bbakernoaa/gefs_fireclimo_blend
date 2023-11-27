@@ -1,16 +1,16 @@
-#!/bin/bash/env python 
+#!/bin/bash/env python
 
 import xarray as xr
-import monet
-import warnings 
+import pandas as pd
+import numpy as np
 
-def create_climdata(emis_coarse, clim, lat_coarse=50, lon_coarse=50):
+def create_climatology(emissions, climatology, lat_coarse=50, lon_coarse=50):
     """
-    Create climatology data by scaling the input climatology based on emission data.
+    Create scaled climatology data based on emission data.
 
     Parameters:
-    emis_coarse (xarray.DataArray): Emission data.
-    clim (xarray.Dataset): Input climatology data.
+    emissions (xarray.DataArray): Emission data.
+    climatology (xarray.Dataset): Input climatology data.
     lat_coarse (int, optional): Coarsening factor for latitude. Defaults to 50.
     lon_coarse (int, optional): Coarsening factor for longitude. Defaults to 50.
 
@@ -18,32 +18,33 @@ def create_climdata(emis_coarse, clim, lat_coarse=50, lon_coarse=50):
     xarray.Dataset: Scaled climatology data.
 
     """
-    # create copy of climatology
-    cn = clim.copy()
+    # Create a copy of the climatology
+    clim = climatology.copy()
 
-    # coarsen climatology
-    clim_coarse = clim.coarsen(lat=lat_coarse, lon=lon_coarse, boundary='trim').sum()
+    # Coarsen the climatology
+    clim_coarse = climatology.coarsen(lat=lat_coarse, lon=lon_coarse, boundary='trim').sum()
 
-    ratio = (emis_coarse.squeeze().data / clim_coarse.where(clim_coarse > 0)).fillna(0)
+    # Calculate the ratio of emissions to climatology and handle NaN values
+    ratio = (emissions.squeeze().data / clim_coarse.where(clim_coarse > 0)).fillna(0)
 
-    ratio_i = ratio.interp(lat=cn.lat, lon=cn.lon, method='nearest')
+    # Interpolate the ratio to match the coordinates of the climatology
+    ratio_interp = ratio.interp(lat=clim.lat, lon=clim.lon, method='nearest')
 
-    # loop through and create
-    for n, t in enumerate(cn.time):
-        # current time slice of climo
-        c = cn.data[n, :, :]
+    # Loop through each time slice and scale the climatology
+    for index, time_slice in enumerate(clim.time):
+        # Get the current time slice of the climatology
+        clim_slice = clim.data[index, :, :]
 
-        # weighted alpha ratio param
-        alpha = 1. - 1. / (n + 1)
+        # Calculate the weighted alpha ratio parameter
+        alpha = 1. - 1. / (index + 1)
 
-        # current time slice scaling
-        ans = c * ratio_i[n, :, :]
+        # Scale the current time slice
+        scaled_slice = clim_slice * ratio_interp[index, :, :]
 
-        # climo scaling for period
-        cn.data[n, :, :] = ans.squeeze().data
+        # Update the climatology with the scaled time slice
+        clim.data[index, :, :] = scaled_slice.squeeze().data
 
-    return cn.compute()
-
+    return clim.compute()
 def make_fire_emission(d=None,climos=None, ratio=0.9,scale_climo=True, n_forecast_days=35, obsfile='GBBEPx_all01GRID.emissions_v004_20190601.nc',climo_directory='climMean'):   
     """
     Generate fire emissions data for a given date and forecast period.
@@ -75,7 +76,7 @@ def make_fire_emission(d=None,climos=None, ratio=0.9,scale_climo=True, n_forecas
 
     # open climo file 
     climo = xr.open_mfdataset(files)
-    
+
     # make weighted climo 
     gc = g.coarsen(lat=150,lon=150,boundary='trim').sum()
     
@@ -94,23 +95,25 @@ def make_fire_emission(d=None,climos=None, ratio=0.9,scale_climo=True, n_forecas
         
         # fix time in copy 
         
-        dset.update({'time':[tslice]})
+        import pandas as pd
+
+        dset.update({'time': [tslice]})
         dset.time.attrs = g.time.attrs
-        
+
         for v in g.data_vars:
             if scale_climo == False:
                 if tslice > 5:
-                    dset[v].data = (ratio * dset[v] + (1 - ratio) * climo[v].data[tslice,:,:])
+                    dset[v].data = (ratio * dset[v] + (1 - ratio) * climo[v].data[tslice, :, :])
             else:
                 if tslice == 0:
-                    print('creating climotology scaling for ',v)
-                    climos[v] = create_climdata(gc[v],climo[v],lon_coarse=150,lat_coarse=150)
+                    print('creating climatology scaling for', v)
+                    climos[v] = create_climatology(gc[v], climo[v], lon_coarse=150, lat_coarse=150)
                 else:
-                    #cn = create_climdata(gc[v],climo[v])
-                    #print(cn)
+                    # cn = create_climdata(gc[v],climo[v])
+                    # print(cn)
                     if tslice > 5:
-                        dset[v].data = (ratio * dset[v] + (1 - ratio) * climos[v].data[tslice,:,:])
-        dsets.append(dset)
+                        dset[v].data = (ratio * dset[v] + (1 - ratio) * climos[v].data[tslice, :, :])
+            dsets.append(dset)
     return dsets
 
 if __name__ == '__main__':
