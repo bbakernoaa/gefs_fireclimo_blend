@@ -5,6 +5,29 @@ import pandas as pd
 import argparse
 
 
+def write_ncf(dset, outfile):
+    """
+    Write the given dataset to a NetCDF file with specified encoding.
+
+    Parameters:
+    - dset (xarray.Dataset): The dataset to be written to the NetCDF file.
+    - outfile (str): The path and filename of the output NetCDF file.
+
+    Returns:
+    None
+    """
+    print('Output File:', outfile)
+    encoding = {}
+    for v in dset.data_vars:
+        encoding[v] = dict(zlib=True, complevel=4)
+    if 'latitude' in dset:
+        encoding['latitude'] = dict(zlib=True, complevel=4)
+        encoding['longitude'] = dict(zlib=True, complevel=4)
+    if 'lat_b' in dset:
+        encoding["lat_b"] = dict(zlib=True, complevel=4)
+        encoding["lon_b"] = dict(zlib=True, complevel=4)
+    dset.load().to_netcdf(outfile, encoding=encoding)
+
 def create_climatology(emissions, climatology, lat_coarse=50, lon_coarse=50):
     """
     Create scaled climatology data based on emission data.
@@ -118,7 +141,7 @@ def make_fire_emission(d=None, climos=None, ratio=0.9, scale_climo=True, n_forec
     return dsets
 
 if __name__ == '__main__':
-    ...
+    parser.add_argument(
         '-s',
         '--start_date',
         type=str,
@@ -137,13 +160,18 @@ if __name__ == '__main__':
     parser.add_argument('-o',
                         '--observation_file',
                         default='/scratch1/RDARCH/rda-arl-gpu/Barry.Baker/emissions/nexus/QFED/2021/',
-                        help='NASA PASSWORD')
+                        help='input fire emission file/files')
+    parser.add_argument('-out',
+                        '--output_filename',
+                        default='/scratch1/RDARCH/rda-arl-gpu/Barry.Baker/emissions/nexus/QFED/2021/',
+                        help='output file name')
     args = parser.parse_args()
 
     start_date = args.start_date
     n_forecast_days = args.n_forecast_days
     climate_directory = args.climo_directory
     observation_file = args.observation_file
+    outfname = parser.output_filename
 
     start = pd.Timestamp(start_date)
 
@@ -153,23 +181,9 @@ if __name__ == '__main__':
                      obsfile=observation_file)
     dset = xr.concat(dsets,dim='time')
     dset['time'] = dset.time.astype('int')
-    #set.OC.where(dset.OC > 0).isel(time=-1).monet.quick_imshow(norm=LogNorm(),cmap='turbo',vmin=1e-11,vmax=1e-8)
-    #for i in arange(35):
-    #    dset.OC.where(dset.OC > 0).isel(time=i).monet.quick_imshow(norm=LogNorm(),cmap='turbo',vmin=1e-11,vmax=1e-8)
-    #    outname = "/scratch2/data_untrusted/Barry.Baker/blended_output_{}.jpg".format(i)
-    #    savefig(outname,dpi=200)
-    #close('all')
     
-    def write_ncf(dset,outfile):
-        print('Output File:', outfile)
-        encoding = {}
-        for v in dset.data_vars:
-            encoding[v] = dict(zlib=True, complevel=4)
-        if 'latitude' in dset:
-            encoding['latitude'] = dict(zlib=True, complevel=4)
-            encoding['longitude'] = dict(zlib=True, complevel=4)
-        if 'lat_b' in dset:
-            encoding["lat_b"] = dict(zlib=True, complevel=4)
-            encoding["lon_b"] = dict(zlib=True, complevel=4)
-        dset.load().to_netcdf(outfile, encoding=encoding)
+    # write netcdf file out 
+    write_ncf(dset,outfname)
+
+    
 
