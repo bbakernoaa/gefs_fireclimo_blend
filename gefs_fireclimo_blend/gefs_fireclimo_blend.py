@@ -140,7 +140,7 @@ if __name__ == '__main__':
                         help='NASA PASSWORD')
     args = parser.parse_args()
 
-    start_date = args.start_doy
+    start_date = args.start_date
     n_forecast_days = args.n_forecast_days
     climate_directory = args.climo_directory
     observation_file = args.observation_file
