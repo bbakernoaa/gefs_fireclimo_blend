@@ -160,13 +160,18 @@ if __name__ == '__main__':
     parser.add_argument('-o',
                         '--observation_file',
                         default='/scratch1/RDARCH/rda-arl-gpu/Barry.Baker/emissions/nexus/QFED/2021/',
-                        help='NASA PASSWORD')
+                        help='input fire emission file/files')
+    parser.add_argument('-out',
+                        '--output_filename',
+                        default='/scratch1/RDARCH/rda-arl-gpu/Barry.Baker/emissions/nexus/QFED/2021/',
+                        help='output file name')
     args = parser.parse_args()
 
     start_date = args.start_date
     n_forecast_days = args.n_forecast_days
     climate_directory = args.climo_directory
     observation_file = args.observation_file
+    outfname = parser.output_filename
 
     start = pd.Timestamp(start_date)
 
@@ -176,11 +181,9 @@ if __name__ == '__main__':
                      obsfile=observation_file)
     dset = xr.concat(dsets,dim='time')
     dset['time'] = dset.time.astype('int')
-    #set.OC.where(dset.OC > 0).isel(time=-1).monet.quick_imshow(norm=LogNorm(),cmap='turbo',vmin=1e-11,vmax=1e-8)
-    #for i in arange(35):
-    #    dset.OC.where(dset.OC > 0).isel(time=i).monet.quick_imshow(norm=LogNorm(),cmap='turbo',vmin=1e-11,vmax=1e-8)
-    #    outname = "/scratch2/data_untrusted/Barry.Baker/blended_output_{}.jpg".format(i)
-    #    savefig(outname,dpi=200)
-    #close('all')
+    
+    # write netcdf file out 
+    write_ncf(dset,outfname)
+
     
 
