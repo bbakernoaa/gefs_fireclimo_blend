@@ -3,6 +3,8 @@
 import xarray as xr
 import pandas as pd
 import numpy as np
+import argparse
+
 
 def create_climatology(emissions, climatology, lat_coarse=50, lon_coarse=50):
     """
@@ -45,7 +47,7 @@ def create_climatology(emissions, climatology, lat_coarse=50, lon_coarse=50):
         clim.data[index, :, :] = scaled_slice.squeeze().data
 
     return clim.compute()
-def make_fire_emission(d=None,climos=None, ratio=0.9,scale_climo=True, n_forecast_days=35, obsfile='GBBEPx_all01GRID.emissions_v004_20190601.nc',climo_directory='climMean'):   
+def make_fire_emission(d=None, climos=None, ratio=0.9, scale_climo=True, n_forecast_days=35, obsfile='GBBEPx_all01GRID.emissions_v004_20190601.nc',climo_directory='climMean'):   
     """
     Generate fire emissions data for a given date and forecast period.
 
