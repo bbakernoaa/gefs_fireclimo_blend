@@ -85,7 +85,7 @@ def make_fire_emission(d=None, climos=None, ratio=0.9, scale_climo=True, n_forec
     if scale_climo==True:
         climos = {}
     else:
-        print('Not scaling climotology')
+        # Remove unnecessary print statement
     for tslice in np.arange(n_forecast_days):
         print(tslice)
         #make copy of original data 
