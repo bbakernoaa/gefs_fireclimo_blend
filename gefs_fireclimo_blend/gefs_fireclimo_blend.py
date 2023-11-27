@@ -118,7 +118,7 @@ def make_fire_emission(d=None, climos=None, ratio=0.9, scale_climo=True, n_forec
     return dsets
 
 if __name__ == '__main__':
-    ...
+    parser.add_argument(
         '-s',
         '--start_date',
         type=str,
