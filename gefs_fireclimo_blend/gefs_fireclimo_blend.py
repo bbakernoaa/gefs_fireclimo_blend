@@ -2,7 +2,28 @@
 
 import xarray as xr
 import pandas as pd
-import argparse
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+
+def open_qfed(fname):
+    from glob import glob
+    from numpy import sort
+    vrs = ['BC','CH4','CO','CO2','NH3','NOx','OC','PM2.5','SO2']
+    qfed_vars = ['bc','ch4','co','co2','nh3','no','oc','pm25','so2']
+    das = []
+    
+    for v in sort(glob(fname)):
+        good = [ i for i in qfed_vars if i in v]
+        if good:
+            print('opening:',v,good)
+            dset = xr.open_dataset(v,decode_cf=False)
+            var_index = vrs[qfed_vars.index(good[0])] # variable index
+            da = dset['biomass']
+            das.append(da)
+    dset_dict = {}
+    for index,v in enumerate(vrs):
+        dset_dict[v] = das[index]
+    dset = xr.Dataset(dset_dict)
+    return dset
 
 
 def write_ncf(dset, outfile):
@@ -26,6 +47,8 @@ def write_ncf(dset, outfile):
     if 'lat_b' in dset:
         encoding["lat_b"] = dict(zlib=True, complevel=4)
         encoding["lon_b"] = dict(zlib=True, complevel=4)
+    if 'time' in dset:
+        encoding['time'] = dict(dtype='i4')
     dset.load().to_netcdf(outfile, encoding=encoding)
 
 def create_climatology(emissions, climatology, lat_coarse=50, lon_coarse=50):
@@ -69,6 +92,8 @@ def create_climatology(emissions, climatology, lat_coarse=50, lon_coarse=50):
         clim.data[index, :, :] = scaled_slice.squeeze().data
 
     return clim.compute()
+
+
 def make_fire_emission(d=None, climos=None, ratio=0.9, scale_climo=True, n_forecast_days=35, obsfile='GBBEPx_all01GRID.emissions_v004_20190601.nc',climo_directory='climMean'):   
     """
     Generate fire emissions data for a given date and forecast period.
@@ -86,31 +111,32 @@ def make_fire_emission(d=None, climos=None, ratio=0.9, scale_climo=True, n_forec
     - list: A list of xarray.Dataset objects representing fire emissions data for each forecast day.
     """
     import pandas as pd
-    
+    import numpy as np
     # get the timestamp
     dd = pd.Timestamp(d) 
     
     #open fire emission
-    g = xr.open_mfdataset(obsfile, decode_cf=False)
+    if 'QFED' in obsfile:
+        g = open_qfed(obsfile)
+    else:
+        g = xr.open_mfdataset(obsfile, decode_cf=False)
     
     # climo files to open
     final = dd + pd.Timedelta('{} days'.format(n_forecast_days))
     dates = pd.date_range(start=dd,end=final,freq='D')
-    files = [t.strftime('{}}/GBBEPx-all01GRID_v4r0_climMean_%m%d.nc'.format(climo_directory)) for t in dates]
+    files = [t.strftime('{}/GBBEPx-all01GRID_v4r0_climMean_%m%d.nc'.format(climo_directory)) for t in dates]
 
     # open climo file 
     climo = xr.open_mfdataset(files)
+    climo = climo.interp(lat=g['lat'],lon=g['lon'])
 
     # make weighted climo 
     gc = g.coarsen(lat=150,lon=150,boundary='trim').sum()
     
     dsets = []
-    if scale_climo==True:
-        climos = {}
-    else:
-        # Remove unnecessary print statement
+    climos = {}
     for tslice in np.arange(n_forecast_days):
-        print(tslice)
+        #print(tslice)
         #make copy of original data 
         if tslice==0:
             dset = g.copy()
@@ -121,7 +147,7 @@ def make_fire_emission(d=None, climos=None, ratio=0.9, scale_climo=True, n_forec
         
         import pandas as pd
 
-        dset.update({'time': [tslice]})
+        dset.update({'time': [float(tslice*24)]})
         dset.time.attrs = g.time.attrs
 
         for v in g.data_vars:
@@ -137,10 +163,13 @@ def make_fire_emission(d=None, climos=None, ratio=0.9, scale_climo=True, n_forec
                     # print(cn)
                     if tslice > 5:
                         dset[v].data = (ratio * dset[v] + (1 - ratio) * climos[v].data[tslice, :, :])
-            dsets.append(dset)
+                    else:
+                        dset[v] = dset[v]
+        dsets.append(dset)
     return dsets
 
 if __name__ == '__main__':
+    parser = ArgumentParser(description='Regrid MERRA2 to FV3 native netcdf input files', formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '-s',
         '--start_date',
@@ -150,40 +179,49 @@ if __name__ == '__main__':
     parser.add_argument(
         '-n',
         '--n_forecast_days',
-        type=str,
+        type=int,
         default=None,
         help='number of days to process')
     parser.add_argument('-c',
                         '--climo_directory',
                         default='/scratch1/RDARCH/rda-arl-gpu/Barry.Baker/emissions/nexus/GBBEPx/v4/climMean',
                         help='Directory of the climate data')
-    parser.add_argument('-o',
-                        '--observation_file',
+    parser.add_argument('-f',
+                        '--fire_file',
                         default='/scratch1/RDARCH/rda-arl-gpu/Barry.Baker/emissions/nexus/QFED/2021/',
                         help='input fire emission file/files')
-    parser.add_argument('-out',
+    parser.add_argument('-o',
                         '--output_filename',
                         default='/scratch1/RDARCH/rda-arl-gpu/Barry.Baker/emissions/nexus/QFED/2021/',
                         help='output file name')
+    parser.add_argument('-r',
+                        '--ratio',
+                        default=0.95,
+                        type=float,
+                        help='weighting ratio')
     args = parser.parse_args()
 
     start_date = args.start_date
     n_forecast_days = args.n_forecast_days
     climate_directory = args.climo_directory
-    observation_file = args.observation_file
-    outfname = parser.output_filename
+    observation_file = args.fire_file
+    outfname = args.output_filename
+    ratio = float(args.ratio)
 
     start = pd.Timestamp(start_date)
 
     dsets = make_fire_emission(d=start,
                      n_forecast_days=n_forecast_days,
-                     climate_directory=climate_directory,
-                     obsfile=observation_file)
-    dset = xr.concat(dsets,dim='time')
+                     climo_directory=climate_directory,
+                               obsfile=observation_file,
+                               ratio=ratio)
+    dset = xr.concat(dsets, dim='time').fillna(0.)
     dset['time'] = dset.time.astype('int')
+    dset['time'].attrs['units'] = start.strftime('hours since %Y-%m-%d 12:00:00')
     
     # write netcdf file out 
     write_ncf(dset,outfname)
+
 
     
 
